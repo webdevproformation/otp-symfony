@@ -128,26 +128,57 @@ création de deux fichiers yml
 modification du fichier `config/packages/security.yaml`
 
 ```yml
-firewalls:
-    dev:
-        pattern: ^/(_(profiler|wdt)|css|images|js)/
-        security: false
-    main:
-        lazy: true
-        provider: app_user_provider
-        form_login:
-            login_path: app_login
-            check_path: app_login
-            enable_csrf: true
-        logout:
-            path: app_logout
-            # where to redirect after logout
-            # target: app_any_route
+security:
+    # https://symfony.com/doc/current/security.html#registering-the-user-hashing-passwords
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+    # https://symfony.com/doc/current/security.html#loading-the-user-the-user-provider
+    providers:
+        # used to reload user from session & other features (e.g. switch_user)
+        app_user_provider:
+            entity:
+                class: App\Entity\User
+                property: email
+    firewalls:
+        dev:
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            security: false
+        main:
+            lazy: true
+            provider: app_user_provider
+            form_login:
+                login_path: app_login
+                check_path: app_login
+                enable_csrf: true
+                success_handler: App\Security\TwoFactor\TwoFactorSuccessHandler
+            logout:
+                path: app_logout
+                # where to redirect after logout
+                target: app_login
 
-        # Activation de la 2FA sur ce firewall
-        two_factor:
-            auth_form_path: 2fa_login   # route du formulaire de 2fa
-            check_path: 2fa_login_check # route pour vérifier ce 2ème élément de sécurité
+            # Activation de la 2FA sur ce firewall
+            two_factor:
+                auth_form_path: 2fa_login   # route du formulaire de 2fa
+                check_path: 2fa_login_check # another route for checking the two-factor authentication code
+                post_only: true
+                enable_csrf: true
+                csrf_token_id: authenticate_2fa
+            
+
+            # activate different ways to authenticate
+            # https://symfony.com/doc/current/security.html#the-firewall
+
+            # https://symfony.com/doc/current/security/impersonating_user.html
+            # switch_user: true
+
+    # Easy way to control access for large sections of your site
+    # Note: Only the *first* access control that matches will be used
+    access_control:
+        # - { path: ^/admin, roles: ROLE_ADMIN }
+        - { path: ^/logout, roles: PUBLIC_ACCESS }
+        - { path: ^/2fa, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
+        - { path: ^/2fa/resend, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
+        - { path: ^/admin, roles: ROLE_USER }
 ```
 
 modification du fichier `config/packages/scheb_2fa.yaml`
@@ -159,41 +190,55 @@ scheb_two_factor:
         - Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken
         - Symfony\Component\Security\Http\Authenticator\Token\PostAuthenticationToken
     email:
-        digits: 6
         enabled: true
-        sender_email: toto@test.fr
+        mailer: App\Security\TwoFactor\EmailAuthCodeMailer
+        sender_email: toto@yahoo.fr
         sender_name: Toto
+        digits: 6
+        template: security/2fa_form.html.twig
 ```
 
 ## modifier du l'entité User
 
-implémente `TwoFactorInterface`
-```php
-class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFactorInterface
+implémente `TwoFactorInterface` et `Email2faStateInterface`
 
+```php
+class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFactorInterface, Email2faStateInterface
 {
 
     /**
      * @var string 
      */
     #[ORM\Column(nullable:true)]
-    private ?string $authCode = null;
+    private ?bool $enable2FA = null;
 
 
-    // ....
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $emailAuthCodeExpiresAt = null;
 
-     /**
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $emailAuthCodeLastSentAt = null;
+
+    // ...
+
+    /* 2FA */
+
+    /**
      * Return true if the user should do two-factor authentication.
-     * active/désactive la 2FA email (peut être un champ persisté)
      */
     public function isEmailAuthEnabled(): bool
     {
-        return true ;
+        return (bool)$this->enable2FA ;
+    }
+
+    public function setEmailAuthEnabled(?bool $enable2FA): static
+    {
+        $this->enable2FA = $enable2FA;
+        return $this;
     }
 
     /**
      * Return user email address.
-     *  l’adresse email destinataire
      */
     public function getEmailAuthRecipient(): string
     {
@@ -202,12 +247,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
 
     /**
      * Return the authentication code.
-     * getter/setter du code persisté
      */
     public function getEmailAuthCode(): string|null
     {
         if(null === $this->authCode){
-            throw new \LogicException("The email authentification code was not set");
+            throw new \LogicException("The email authentification code waw not set");
         }
         return $this->authCode ;
     }
@@ -215,10 +259,46 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     /**
      * Set the authentication code.
      */
-    public function setEmailAuthCode(string $authCode): void
+    public function setEmailAuthCode(?string $authCode): void
     {
         $this->authCode = $authCode ; 
     }
+
+
+    public function getEmailAuthCodeExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->emailAuthCodeExpiresAt;
+    }
+
+    public function setEmailAuthCodeExpiresAt(?\DateTimeImmutable $expiresAt): static
+    {
+        $this->emailAuthCodeExpiresAt = $expiresAt;
+        return $this;
+    }
+
+    public function getEmailAuthCodeLastSentAt(): ?\DateTimeImmutable
+    {
+        return $this->emailAuthCodeLastSentAt;
+    }
+
+    public function setEmailAuthCodeLastSentAt(?\DateTimeImmutable $sentAt): static
+    {
+        $this->emailAuthCodeLastSentAt = $sentAt;
+        return $this;
+    }
+}
+```
+
+
+```php
+<?php 
+
+namespace App\Security\TwoFactor;
+
+interface Email2faStateInterface
+{
+    public function setEmailAuthCodeExpiresAt(\DateTimeImmutable $expiresAt): static;
+    public function setEmailAuthCodeLastSentAt(\DateTimeImmutable $sentAt): static;
 }
 ```
 
@@ -228,8 +308,182 @@ symfony console make:migration
 symfony console d:m:m
 ```
 
-toto@yahoo.fr
+## Service en charge de l'émission de l'email
 
+```php
+<?php
+declare(strict_types=1);
+
+// src/Security/TwoFactor/EmailAuthCodeMailer.php
+namespace App\Security\TwoFactor;
+
+use DateTimeImmutable;
+use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
+use Scheb\TwoFactorBundle\Mailer\AuthCodeMailerInterface;
+use Scheb\TwoFactorBundle\Model\Email\TwoFactorInterface;
+use Symfony\Bridge\Twig\Mime\TemplatedEmail;
+use Symfony\Component\Clock\ClockInterface;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Address;
+
+class EmailAuthCodeMailer implements AuthCodeMailerInterface
+{
+
+    /** 10 minutes = 60 * 10 
+    * TTL - Time To Live - indique le temps pendant lequel une information doit être conservée
+    **/
+    public const EXPIRE_CODE_SECONDS = 600 ;
+
+    // If you implemented resend throttling, set this to your throttle (seconds)
+    // Cooldown = délai de délai de récupération
+    public const RESEND_THROTTLE_SECONDS = 30;
+
+    public function __construct(
+        private readonly MailerInterface $mailer,
+        private readonly EntityManagerInterface $em,
+        private readonly ClockInterface $clock,
+        private readonly LoggerInterface $logger,
+        private readonly string $senderEmail = "toto@yahoo.fr",
+        private readonly string $senderName = "TOTO"
+    ) {}
+
+    public function sendAuthCode(TwoFactorInterface $user): void
+    {
+        // "now" unique et testable (Clock)
+
+        $now = \DateTimeImmutable::createFromInterface($this->clock->now());
+        $expiresAt = $now->modify(sprintf('+%d seconds', self::EXPIRE_CODE_SECONDS));
+
+        $recipient = (string) $user->getEmailAuthRecipient();
+        if ($recipient === '') {
+            // Fail fast: missing email destination is a config/user-data error.
+            $this->logger->error('2FA email recipient is empty', [
+                'userClass' => $user::class,
+            ]);
+            throw new \InvalidArgumentException('2FA email recipient is empty.');
+        }
+
+        if ($user instanceof Email2faStateInterface) {
+            $user->setEmailAuthCodeLastSentAt($now);
+            $user->setEmailAuthCodeExpiresAt($expiresAt);
+        }
+
+
+        $email = (new TemplatedEmail())
+        ->from(new Address($this->senderEmail, $this->senderName))
+        ->to(new Address($user->getEmailAuthRecipient()))
+        ->subject('Vérification de votre identité')
+        ->htmlTemplate('security/2fa_email.html.twig')
+        ->context([
+            'emailDestinataire' => $recipient,
+            'code'              => $user->getEmailAuthCode(),
+            'sentAt'            => $now,
+            'expiresAt'         => $expiresAt,
+            'ttl'               => self::EXPIRE_CODE_SECONDS
+        ]);
+
+        try{
+
+            $this->mailer->send($email);
+            $this->em->flush();
+
+        }catch(TransportExceptionInterface $e)
+        {
+            $this->logger->error('Failed to send 2FA email code', [
+                'recipient' => $user->getEmailAuthRecipient(),
+                'error' => $e->getMessage(),
+            ]);
+            // Remonte l’erreur (ou transforme en exception métier)
+            throw $e;
+        }catch (\Throwable $e) {
+            $this->logger->error('Failed to send 2FA email (unexpected)', [
+                'recipient' => $recipient,
+                'exception' => $e::class,
+                'error'     => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+}
+```
+
+
+---
 
 ## serveur email set up
+
+<http://localhost:1080>
+
+```docker
+services:
+  mailcatcher:
+    image: dockage/mailcatcher:0.7.1
+    container_name: mailcatcher_2fa
+    ports:
+        - 1080:1080
+        - 1025:1025
+
+```
+
+## resend email
+
+```php
+<?php
+namespace App\Controller;
+
+use App\Entity\User;
+use App\Security\TwoFactor\EmailAuthCodeMailer;
+use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Email\Generator\CodeGeneratorInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Annotation\Route;
+
+
+final class Auth2FaController extends AbstractController
+{
+
+    #[Route('/2fa/resend', name: 'app_resend_code_2fa' , methods:["POST"])]
+    public function resend(
+        CodeGeneratorInterface $baseGenerator,
+        Request $request
+    ): Response {
+
+        $submittedToken = $request->getPayload()->get('token');
+
+        // 'delete-item' is the same value used in the template to generate the token
+        if (!$this->isCsrfTokenValid('resend-2fa', $submittedToken)) {
+            $this->addFlash('warning', 'CSRF invalide');
+            return $this->redirectToRoute('2fa_login');
+        }
+
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        //  Cooldown = délai de délai de récupération
+        $duration = sprintf("PT%sS", EmailAuthCodeMailer::RESEND_THROTTLE_SECONDS);
+        if (
+            $user->getEmailAuthCodeLastSentAt()
+            && $user->getEmailAuthCodeLastSentAt() > (new \DateTimeImmutable())->sub(new \DateInterval($duration))
+        ) {
+            $this->addFlash('warning', 'Veuillez patienter avant de renvoyer le code.');
+            return $this->redirectToRoute('2fa_login');
+        }
+
+        // ça va appeler 
+        // App\Security\TwoFactor\EmailAuthCodeMailer::sendAuthCode
+        $baseGenerator->generateAndSend($user);
+
+        $this->addFlash('success', 'Un nouveau code a été envoyé.');
+        return $this->redirectToRoute('2fa_login');
+    }
+}
+```
+
 
