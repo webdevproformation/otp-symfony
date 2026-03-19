@@ -314,6 +314,14 @@ symfony console d:m:m
 
 ## Service en charge de l'émission de l'email
 
+Il a besoin de <a href="https://packagist.org/packages/symfony/clock">packagiste</a> / <a href="https://www.jschristophe.fr/symfony-clock-datetime-pourquoi-choisir-le-futur/">article sur le composant</a>
+
+```sh
+composer require symfony/clock
+```
+
+
+
 ```php
 <?php
 declare(strict_types=1);
@@ -559,7 +567,7 @@ class Email2FAValidationSubscriber implements EventSubscriberInterface
             throw new AuthenticationException('Code expiré. Veuillez en demander un nouveau.');
         }
     }
-    
+
     public function onTwoFactorComplete(TwoFactorAuthenticationEvent $event): void
     {
         /** @var User $user */
