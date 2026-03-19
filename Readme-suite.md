@@ -432,14 +432,15 @@ le logout peut rediriger vers le formulaire 2FA (comportement typique). [symfony
 - `User` : implémente Email\TwoFactorInterface + champ persisté pour le code. [symfony.com]<https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html>
 
 
-Liens doc utiles
+# Liens doc utiles
 
-Installation : 
+## Installation : 
 
 - <https://symfony.com/bundles/SchebTwoFactorBundle/current/installation.html> [symfony.com]
 Provider email : 
 - <https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html> [symfony.com]
-Référence config : 
+
+## Référence config : 
 
 - <https://symfony.com/bundles/SchebTwoFactorBundle/current/configuration.html> [symfony.com] 
 - <https://symfony.com/bundles/SchebTwoFactorBundle/current/installation.html>
