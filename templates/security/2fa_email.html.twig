@@ -1,0 +1,9 @@
+<h1>Bonjour {{ emailDestinataire }}</h1>
+
+<p>Veuillez saisir le code de vérification à 6 chiffres pour finaliser votre connexion à NeroSys</p>
+
+<p>Votre code : <strong>{{ code }}</strong></p>
+
+<p>Ce code est valide {{ (ttl / 60)|number_format(0) }} minutes</p>
+<p>Envoyé le : {{ sentAt|date('d/m/Y H:i:s') }}</p>
+<p>Expire le : {{ expiresAt|date('d/m/Y H:i:s') }}</p>

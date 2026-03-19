@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+
+{% import "macros/menu.html.twig" as ux %}
+
+{% block title %}Hello AdminController!{% endblock %}
+
+{% block body %}
+
+{{ ux.menu() }}
+
+<h1>Hello {{ controller_name }}! ✅</h1>
+
+This friendly message is coming from:
+<ul>
+    <li>Your controller at <code>C:/Users/harri/Desktop/2fa/src/Controller/AdminController.php</code></li>
+    <li>Your template at <code>C:/Users/harri/Desktop/2fa/templates/admin/index.html.twig</code></li>
+</ul>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% macro menu() %}
+<header>
+
+  <a href="{{ path("app_index") }}">home</a>
+  {% if (app.user is null) %}
+    <a href="{{ path("app_login") }}">login</a>
+    <a href="{{ path("app_register") }}">register</a>
+  {% else %}
+    <a href="{{path("app_logout")}}">Déconnexion</a>
+  {% endif %}
+
+</header>
+{% endmacro %}
