@@ -27,16 +27,20 @@ namespace App\Controller;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 final class AdminController extends AbstractController
 {
 
-    #[Route('/', name: 'app_home')]
-    public function home(): Response
+    #[Route('/', name: 'app_index')]
+    public function index(): Response
     {
-        return $this->redirectToRoute("app_admin") ;
+        return $this->render('admin/home.html.twig', [
+            'controller_name' => 'AdminController',
+        ]);
     }
 
+    #[IsGranted("ROLE_USER")]
     #[Route('/admin', name: 'app_admin')]
     public function admin(): Response
     {
@@ -46,11 +50,9 @@ final class AdminController extends AbstractController
     }
 
 }
-``` 
+```
 
-# `security.yaml`
-
-
+<>
 
 # start serveur de développement
 
@@ -88,6 +90,8 @@ symfony console make:security:form-login
 # updated: config/packages/security.yaml
 ```
 
+<https://127.0.0.1:8000/login>
+
 ## Formulaire d'inscription (pour ajouter un user)
 
 ```sh
@@ -99,11 +103,8 @@ symfony console make:registration-form
 # created: templates/registration/register.html.twig
 ```
 
-![](img/registration.png)
-
 <https://127.0.0.1:8000/register>
 
-toto@yahoo.fr
 
 
 # 2fa
@@ -198,7 +199,7 @@ scheb_two_factor:
         template: security/2fa_form.html.twig
 ```
 
-## modifier du l'entité User
+## modifier l'entité User
 
 implémente `TwoFactorInterface` et `Email2faStateInterface`
 
