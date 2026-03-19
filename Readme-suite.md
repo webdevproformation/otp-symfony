@@ -318,11 +318,11 @@ scheb_two_factor:
 
 Le provider email génère un code numérique, le persiste sur l’utilisateur, l’envoie par email puis l’utilisateur doit saisir ce code.
 
-[symfony.com]https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html
+[symfony.com]<https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html>
 
-Le nombre de digits est configurable (digits). [symfony.com]https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html
+Le nombre de digits est configurable (digits). [symfony.com]<https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html>
 
-Le provider peut être configuré avec un mailer custom, un code_generator custom, etc. [symfony.com], [symfony.com]https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html
+Le provider peut être configuré avec un mailer custom, un code_generator custom, etc. [symfony.com], [symfony.com]<https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html>
 
 5) Adapter ton User (obligatoire)
 
@@ -341,19 +341,21 @@ getEmailAuthCode() / setEmailAuthCode() → getter/setter du code persisté
 
 
 6) Modifier ton security.yaml (TON fichier)
-Tu as fourni ce fichier (je garde ta structure) et j’ajoute seulement :
 
-la section two_factor dans le firewall main
-access_control pour autoriser /2fa uniquement quand la 2FA est en cours, et rendre logout accessible.
+Tu ajoutes seulement :
+
+- la section two_factor dans le firewall main
+- access_control pour autoriser /2fa uniquement quand la 2FA est en cours, et rendre logout accessible.
 
 La doc d’installation indique :
 
-Ajouter two_factor: auth_form_path: 2fa_login et check_path: 2fa_login_check au firewall. [symfony.com.cn]
-Mettre les règles access_control en tout premier (important). [symfony.com.cn]
-Rendre le logout accessible pendant la 2FA avec PUBLIC_ACCESS. [symfony.com.cn], [symfony.com]
+- Ajouter two_factor: auth_form_path: 2fa_login et check_path: 2fa_login_check au firewall. [symfony.com.cn]
+- Mettre les règles access_control en tout premier (important). [symfony.com.cn]
+- Rendre le logout accessible pendant la 2FA avec PUBLIC_ACCESS. [symfony.com.cn], [symfony.com]
 
 ✅ Version modifiée de ton security.yaml (extrait complet)
 
+```yml
 security:
   password_hashers:
     Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
@@ -396,6 +398,7 @@ security:
       logout:
         path: app_logout
 
+
   # ✅ IMPORTANT : mettre ces règles TOUT EN HAUT de access_control [3](https://symfony.com.cn/bundles/SchebTwoFactorBundle/current/installation.html)
   access_control:
     # rendre le logout accessible pendant la 2FA (sinon boucles / redirections)
@@ -414,6 +417,7 @@ when@test:
         cost: 4
         time_cost: 3
         memory_cost: 10
+```
 
 Note : la règle /logout ci-dessus doit correspondre à TON chemin effectif de logout.
 La doc troubleshooting explique que si logout n’est pas autorisé par access_control,
@@ -422,14 +426,20 @@ le logout peut rediriger vers le formulaire 2FA (comportement typique). [symfony
 
 7) Ce que tu dois vérifier après intégration
 
-scheb_2fa.yaml : email enabled + sender_email + digits. [symfony.com]https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html
-routes/scheb_2fa.yaml : /2fa et /2fa_check existent. [symfony.com], [symfony.com.cn]
-security.yaml : two_factor sur le firewall main + access_control en haut. [symfony.com.cn]
-User : implémente Email\TwoFactorInterface + champ persisté pour le code. [symfony.com]https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html
+- `scheb_2fa.yaml` : email enabled + sender_email + digits. [symfony.com]<https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html>
+- `routes/scheb_2fa.yaml` : /2fa et /2fa_check existent. [symfony.com], [symfony.com.cn]
+- `security.yaml` : two_factor sur le firewall main + access_control en haut. [symfony.com.cn]
+- `User` : implémente Email\TwoFactorInterface + champ persisté pour le code. [symfony.com]<https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html>
 
 
 Liens doc utiles
 
-Installation : https://symfony.com/bundles/SchebTwoFactorBundle/current/installation.html [symfony.com]
-Provider email : https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html [symfony.com]
-Référence config : https://symfony.com/bundles/SchebTwoFactorBundle/current/configuration.html [symfony.com] https://symfony.com/bundles/SchebTwoFactorBundle/current/installation.html
+Installation : 
+
+- <https://symfony.com/bundles/SchebTwoFactorBundle/current/installation.html> [symfony.com]
+Provider email : 
+- <https://symfony.com/bundles/SchebTwoFactorBundle/current/providers/email.html> [symfony.com]
+Référence config : 
+
+- <https://symfony.com/bundles/SchebTwoFactorBundle/current/configuration.html> [symfony.com] 
+- <https://symfony.com/bundles/SchebTwoFactorBundle/current/installation.html>
