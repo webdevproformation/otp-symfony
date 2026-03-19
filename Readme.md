@@ -17,7 +17,9 @@ SELECT VERSION();
 
 # un controller
 
-- `symfony console make:controller AdminController`
+```sh
+symfony console make:controller AdminController
+```
 
 ```php
 <?php
@@ -41,7 +43,7 @@ final class AdminController extends AbstractController
     }
 
     #[IsGranted("ROLE_USER")]
-    #[Route('/admin', name: 'app_admin')]
+    #[Route('/dashboard', name: 'app_admin')]
     public function admin(): Response
     {
         return $this->render('admin/index.html.twig', [
@@ -52,7 +54,8 @@ final class AdminController extends AbstractController
 }
 ```
 
-<>
+<http://localhost:8000>
+<http://localhost:8000/dashboard>
 
 # start serveur de développement
 
@@ -429,6 +432,35 @@ services:
 
 ```
 
+## Redirection en cas de succes
+
+```php
+<?php
+namespace App\Security\TwoFactor;
+
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\RouterInterface;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Http\Authentication\AuthenticationSuccessHandlerInterface;
+
+class TwoFactorSuccessHandler implements AuthenticationSuccessHandlerInterface
+{
+    public function __construct(private RouterInterface $router) {}
+
+    public function onAuthenticationSuccess(
+        Request $request, 
+        TokenInterface $token
+        ): ?Response
+    {
+        return new RedirectResponse(
+            $this->router->generate('app_admin')
+        );
+    }
+}
+```
+
 ## resend email
 
 ```php
@@ -487,4 +519,65 @@ final class Auth2FaController extends AbstractController
 }
 ```
 
+# Events : verifier que le code n'a pas expiré + vider le code suite à la connexion
 
+```php
+<?php
+// src/EventSubscriber/Email2FAValidationSubscriber.php
+
+namespace App\EventSubscriber;
+
+// use Scheb\TwoFactorBundle\Event\TwoFactorAuthenticationEvent;
+use App\Entity\User;
+use Doctrine\ORM\EntityManagerInterface;
+use Scheb\TwoFactorBundle\Security\TwoFactor\Event\TwoFactorAuthenticationEvent;
+use Scheb\TwoFactorBundle\Security\TwoFactor\Event\TwoFactorAuthenticationEvents;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\Security\Core\Exception\AuthenticationException;
+
+class Email2FAValidationSubscriber implements EventSubscriberInterface
+{
+    public function __construct(private EntityManagerInterface $em) {}
+
+    public static function getSubscribedEvents(): array
+    {
+        return [
+            TwoFactorAuthenticationEvents::ATTEMPT => 'on2faCheck',
+            TwoFactorAuthenticationEvents::COMPLETE => 'onTwoFactorComplete',
+        ];
+    }
+
+    public function on2faCheck(TwoFactorAuthenticationEvent $event): void
+    {
+        /** @var User $user */
+        $user = $event->getToken()->getUser();
+
+        if (
+            $user->getEmailAuthCodeExpiresAt() !== null
+            && $user->getEmailAuthCodeExpiresAt() < new \DateTimeImmutable()
+        ) {
+            throw new AuthenticationException('Code expiré. Veuillez en demander un nouveau.');
+        }
+    }
+    
+    public function onTwoFactorComplete(TwoFactorAuthenticationEvent $event): void
+    {
+        /** @var User $user */
+        $user = $event->getToken()->getUser();
+
+        // Example: if you store the email code on the User entity:
+        if (method_exists($user, 'setEmailAuthCode')) {
+            $user->setEmailAuthCode(null);
+        }
+        if (method_exists($user, 'setEmailAuthCodeExpiresAt')) {
+            $user->setEmailAuthCodeExpiresAt(null);
+        }
+        if (method_exists($user, 'setEmailAuthCodeLastSentAt')) {
+            $user->setEmailAuthCodeLastSentAt(null);
+        }
+
+        $this->em->flush();
+    }
+
+}
+```
